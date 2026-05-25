@@ -1,3 +1,4 @@
+#Python code for structured data extraction from SAP F110 reports using Google Gemini API with strict schema enforcement and robust error handling. The code is designed to be run in an enterprise environment, with logging, retries, and clean output generation.
 import os
 import re
 import json
