@@ -1,0 +1,206 @@
+{
+    "suppliers": [
+        {
+            "supplier_number": "0020000104",
+            "supplier_name": "SINGAPORE TELECOMMUNICATIONS LTD",
+            "supplier_address": "ORCHARD P.O.BOX 400\nSINGAPORE 912314",
+            "documents": [
+                {
+                    "busA": "HQ08",
+                    "company_code": "1266",
+                    "reference": "BOA_DD_072024",
+                    "document_type": "AB",
+                    "document_date": "03.07.2024",
+                    "due_date": null,
+                    "pay_t": null,
+                    "pk": null,
+                    "currency": "SGD",
+                    "net_amount_fc": "872.00",
+                    "net_amount_lc": "642.73",
+                    "err": "003",
+                    "net": "0",
+                    "confidence_score": 0.9
+                },
+                {
+                    "busA": null,
+                    "company_code": "1266",
+                    "reference": "0022",
+                    "document_type": "RE",
+                    "document_date": "19.06.2024",
+                    "due_date": "03.07.2024",
+                    "pay_t": "B014",
+                    "pk": "31",
+                    "currency": "SGD",
+                    "net_amount_fc": "872.00-",
+                    "net_amount_lc": "645.50-",
+                    "err": "016",
+                    "net": "0",
+                    "confidence_score": 0.9
+                }
+            ]
+        },
+        {
+            "supplier_number": "0020011167",
+            "supplier_name": "MARINA BAY SANDS PTE LTD",
+            "supplier_address": "10 BAYFRONT AVENU\nSINGAPORE 018956",
+            "documents": [
+                {
+                    "busA": "HQ08",
+                    "company_code": "1266",
+                    "reference": null,
+                    "document_type": "ZP",
+                    "document_date": "24.06.2024",
+                    "due_date": null,
+                    "pay_t": null,
+                    "pk": "29",
+                    "currency": "SGD",
+                    "net_amount_fc": "46,619.30",
+                    "net_amount_lc": "34,395.25",
+                    "err": "001",
+                    "net": "0",
+                    "confidence_score": 0.9
+                }
+            ]
+        },
+        {
+            "supplier_number": "0060000294",
+            "supplier_name": "RAJ PETRO SPECIALITIES PVT LTD",
+            "supplier_address": "8th FLOOR NORTH TOWER, KRM PLAZA\n#2, HARRINGTON ROAD, CHETPET\n600031 CHENNAI\nINDIA",
+            "documents": [
+                {
+                    "busA": null,
+                    "company_code": "1266",
+                    "reference": "1218000025",
+                    "document_type": "KR",
+                    "document_date": "22.07.2024",
+                    "due_date": "21.08.2024",
+                    "pay_t": "B030",
+                    "pk": "31",
+                    "currency": "USD",
+                    "net_amount_fc": "677.39-",
+                    "net_amount_lc": "677.39-",
+                    "err": "007",
+                    "net": "0",
+                    "confidence_score": 0.9
+                },
+                {
+                    "busA": null,
+                    "company_code": "1266",
+                    "reference": "1218000026",
+                    "document_type": "KR",
+                    "document_date": "22.07.2024",
+                    "due_date": "21.08.2024",
+                    "pay_t": "B030",
+                    "pk": "31",
+                    "currency": "USD",
+                    "net_amount_fc": "909.24-",
+                    "net_amount_lc": "909.24-",
+                    "err": "007",
+                    "net": "0",
+                    "confidence_score": 0.9
+                }
+            ]
+        },
+        {
+            "supplier_number": "0020000038",
+            "supplier_name": "FUJIFILM BUSINESS INNOVATION\nSINGAPORE PTE. LTD",
+            "supplier_address": "NO.80 ANSON ROAD #01-01\nFUJI XEROX TOWERS\nSINGAPORE 079907",
+            "documents": [
+                {
+                    "busA": null,
+                    "company_code": null,
+                    "reference": "F110000001",
+                    "document_type": "BOA",
+                    "document_date": null,
+                    "due_date": "15.05.2026",
+                    "pay_t": null,
+                    "pk": null,
+                    "currency": "SGD",
+                    "net_amount_fc": "218.00-",
+                    "net_amount_lc": null,
+                    "err": null,
+                    "net": null,
+                    "confidence_score": 0.8
+                },
+                {
+                    "busA": null,
+                    "company_code": "1266",
+                    "reference": "124807509",
+                    "document_type": "RE",
+                    "document_date": "01.01.2026",
+                    "due_date": "31.01.2026",
+                    "pay_t": "B030",
+                    "pk": "31",
+                    "currency": "SGD",
+                    "net_amount_fc": "218.00-",
+                    "net_amount_lc": "169.58-",
+                    "err": "0",
+                    "net": "0",
+                    "confidence_score": 0.9
+                }
+            ]
+        },
+        {
+            "supplier_number": "0020000064",
+            "supplier_name": "JOBSTREET.COM PTE LTD",
+            "supplier_address": "1 WALLICH STREET #24-03\nGUOCO TOWER\nSINGAPORE 078881",
+            "documents": [
+                {
+                    "busA": null,
+                    "company_code": null,
+                    "reference": "F110000002",
+                    "document_type": "BOA",
+                    "document_date": null,
+                    "due_date": "15.05.2026",
+                    "pay_t": null,
+                    "pk": null,
+                    "currency": "SGD",
+                    "net_amount_fc": "4,142.00-",
+                    "net_amount_lc": null,
+                    "err": null,
+                    "net": null,
+                    "confidence_score": 0.8
+                },
+                {
+                    "busA": null,
+                    "company_code": "1266",
+                    "reference": "SGTX100000025752",
+                    "document_type": "RE",
+                    "document_date": "19.07.2024",
+                    "due_date": "18.08.2024",
+                    "pay_t": "B030",
+                    "pk": "31",
+                    "currency": "SGD",
+                    "net_amount_fc": "4,142.00-",
+                    "net_amount_lc": "3,079.78-",
+                    "err": "0",
+                    "net": "0",
+                    "confidence_score": 0.9
+                }
+            ]
+        },
+        {
+            "supplier_number": "0020000068",
+            "supplier_name": "KUMPULAN DEVELOPMENT (S) PTE LTD",
+            "supplier_address": "#02-02 NO 15, TAI SING DRIVE\nSINGAPORE 535220",
+            "documents": [
+                {
+                    "busA": null,
+                    "company_code": "1266",
+                    "reference": "CM/165979",
+                    "document_type": "RE",
+                    "document_date": "28.06.2024",
+                    "due_date": "12.08.2024",
+                    "pay_t": "B045",
+                    "pk": "31",
+                    "currency": "SGD",
+                    "net_amount_fc": "114.45-",
+                    "net_amount_lc": "84.70-",
+                    "err": null,
+                    "net": "0",
+                    "confidence_score": 0.9
+                }
+            ]
+        }
+    ]
+}

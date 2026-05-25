@@ -1,0 +1,14 @@
+2026-05-26 02:26:59,586 [INFO] Reading file: input/input_sample.txt
+2026-05-26 02:26:59,587 [INFO] Chunking document...
+2026-05-26 02:26:59,589 [INFO] Created 1 valid chunks.
+2026-05-26 02:26:59,590 [INFO] Starting parallel execution with 5 threads...
+2026-05-26 02:26:59,591 [INFO] Extracting Chunk 1/1...
+2026-05-26 02:26:59,592 [INFO] AFC is enabled with max remote calls: 10.
+2026-05-26 02:30:02,142 [INFO] HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent "HTTP/1.1 200 OK"
+2026-05-26 02:30:06,148 [INFO] AFC is enabled with max remote calls: 10.
+2026-05-26 02:33:10,635 [INFO] HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent "HTTP/1.1 200 OK"
+2026-05-26 02:33:14,642 [INFO] AFC is enabled with max remote calls: 10.
+2026-05-26 02:36:02,145 [INFO] HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent "HTTP/1.1 200 OK"
+2026-05-26 02:36:02,152 [ERROR] Chunk 1 failed after retries: Unterminated string starting at: line 5566 column 11 (char 161255)
+2026-05-26 02:36:02,153 [INFO] Flattening JSON to tabular format...
+2026-05-26 02:36:02,156 [WARNING] No data extracted. Please check the input file.

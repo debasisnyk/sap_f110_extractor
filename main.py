@@ -1,8 +1,8 @@
-#Python code for structured data extraction from SAP F110 reports using Google Gemini API with strict schema enforcement and robust error handling. The code is designed to be run in an enterprise environment, with logging, retries, and clean output generation.
 import os
 import re
 import json
 import logging
+import concurrent.futures
 from datetime import datetime
 from typing import List, Optional
 
@@ -16,8 +16,6 @@ from google.genai import types
 # ===========================================================================
 # 1. Logging Configuration
 # ===========================================================================
-# We create a structured logs directory to track runs and API latency.
-# This log file is useful for auditing and debugging inside enterprise runners like UiPath.
 os.makedirs("logs", exist_ok=True)
 logging.basicConfig(
     level=logging.INFO,
@@ -32,35 +30,21 @@ logger = logging.getLogger(__name__)
 # ===========================================================================
 # 2. Environment Variable Setup
 # ===========================================================================
-# Load standard environment configurations (.env)
 load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-MODEL_NAME = os.getenv("MODEL_NAME", "gemini-2.5-flash")
+MODEL_NAME = os.getenv("MODEL_NAME", "gemini-2.5-flash-lite")
+MAX_SUPPLIERS_PER_CHUNK = int(os.getenv("MAX_SUPPLIERS_PER_CHUNK", "15"))
+MAX_CONCURRENT_CALLS = int(os.getenv("MAX_CONCURRENT_CALLS", "5"))
 
-# Adjust this threshold if you experience rate limits (TPM) or payload constraints.
-# 5 suppliers per chunk is a reliable default for structured financial documents.
-MAX_SUPPLIERS_PER_CHUNK = int(os.getenv("MAX_SUPPLIERS_PER_CHUNK", "5"))
+if not GEMINI_API_KEY or GEMINI_API_KEY == "your_api_key_here":
+    raise ValueError("GEMINI_API_KEY environment variable is missing or invalid!")
 
-if not GEMINI_API_KEY:
-    raise ValueError("GEMINI_API_KEY environment variable is missing!")
-
-# Initialize the official Google GenAI Client
 client = genai.Client(api_key=GEMINI_API_KEY)
-
 
 # ===========================================================================
 # 3. Pydantic Schemas for Strict Structured Schema Generation
 # ===========================================================================
-# By using Pydantic models with the response_schema config parameter, we force 
-# Gemini to constrain its raw output token generation to match our exact schema.
-# This prevents parsing failures caused by random markdown or syntax variations.
-
 class DocumentLine(BaseModel):
-    """
-    Represents an individual document or exception row nested under a supplier.
-    Each field contains description tags to help Gemini align visual text coordinates 
-    with the accurate schema key.
-    """
     busA: Optional[str] = Field(description="Business Area (BusA). Keep as null if not present.")
     company_code: Optional[str] = Field(description="Company Code (CoCd), usually 4 characters.")
     reference: Optional[str] = Field(description="Document reference number, e.g., BOA_DD_022024, 101010826.")
@@ -70,100 +54,66 @@ class DocumentLine(BaseModel):
     pay_t: Optional[str] = Field(description="Payment Terms (PayT), e.g., B014, B007.")
     pk: Optional[str] = Field(description="Posting Key (PK), e.g., 31, 21, 25.")
     currency: Optional[str] = Field(description="Transaction Currency (Crcy), e.g., SGD, USD.")
-    
-    # We keep amounts as strings during extraction to preserve custom trailing minus signs.
-    # Conversion to float is performed safely during the Python clean-up phase.
     net_amount_fc: Optional[str] = Field(description="Net amount in Foreign Currency (FC). Keep trailing minus if present.")
     net_amount_lc: Optional[str] = Field(description="Net amount in Local Currency (LC). Keep trailing minus if present.")
-    
     err: Optional[str] = Field(description="Error / Exception block code (Err), e.g., 016, 003, 099.")
     net: Optional[str] = Field(description="Net indicator value (Net), e.g., 0.")
     confidence_score: float = Field(description="Self-evaluation score (0.0 to 1.0) based on character legibility.")
 
 class SupplierBlock(BaseModel):
-    """
-    Represents a Supplier block, grouping parent information with nested child line items.
-    """
     supplier_number: Optional[str] = Field(description="10-digit ID after '--Supplier' prefix, e.g., '0020001498'.")
     supplier_name: Optional[str] = Field(description="Name of the company/payee listed inside the supplier box header.")
     supplier_address: Optional[str] = Field(description="Combined multiline address strings found inside the supplier box.")
     documents: List[DocumentLine] = Field(description="List of transaction entries, exceptions, or direct payments.")
 
 class ExtractionResult(BaseModel):
-    """
-    Root structure containing array of extracted suppliers.
-    """
     suppliers: List[SupplierBlock]
-
 
 # ===========================================================================
 # 4. Utility Functions & Cleansing Pipelines
 # ===========================================================================
 def clean_sap_number(val: Optional[str]) -> Optional[float]:
-    """
-    Parses financial string variations from SAP into floats.
-    Handles thousands separators and shifts the trailing negative sign.
-    
-    Example input: '12,678.79-' -> float: -12678.79
-    """
+    """Converts SAP financial string (e.g., '12,678.79-') to a standard float (-12678.79)."""
     if not val:
         return None
     val = str(val).strip()
     if not val:
         return None
     
-    # Detect the SAP trailing minus sign indicating a negative ledger item
     is_negative = val.endswith('-')
-    
-    # Clean formatting anomalies (commas and minus signs) to make value parseable
     val = val.replace(',', '').replace('-', '').strip()
     
     try:
         num = float(val)
         return -num if is_negative else num
     except ValueError:
-        logger.warning(f"Failed to cast financial string '{val}' to float.")
         return None
 
-def chunk_sap_text(file_content: str, max_suppliers_per_chunk: int) -> List[str]:
-    """
-    Splits the SAP document by supplier boundaries to avoid splitting transactions.
-    
-    Uses positive lookahead re.split to isolate segments beginning with the
-    pattern '--Supplier [10-digit number]'.
-    """
-    # Lookahead pattern splits text but retains the '--Supplier 1234567890' header 
-    # at the start of each split array element.
+def chunk_sap_text(file_content: str, max_suppliers: int) -> List[str]:
+    """Intelligently splits the SAP text by Supplier blocks to avoid cutting transactions."""
     raw_chunks = re.split(r'(?=--Supplier \d{10}-+)', file_content)
-    
-    chunks = []
-    current_chunk = ""
+    chunks, current_chunk = [], ""
     supplier_count = 0
     
     for block in raw_chunks:
         if "--Supplier" in block:
             supplier_count += 1
             
-        # Re-aggregate sub-blocks until we hit our maximum count threshold
-        if supplier_count > max_suppliers_per_chunk:
+        if supplier_count > max_suppliers:
             chunks.append(current_chunk)
             current_chunk = block
-            supplier_count = 1  # Reset count to current block
+            supplier_count = 1
         else:
             current_chunk += block
             
-    # Append remaining block
     if current_chunk.strip():
         chunks.append(current_chunk)
         
     return chunks
 
-
 # ===========================================================================
 # 5. Gemini API Handler with Resiliency Retries
 # ===========================================================================
-# We use exponential backoff via tenacity to absorb temporary 429 Rate Limits
-# or transient server issues. This is required for production enterprise environments.
 @retry(
     wait=wait_exponential(multiplier=1, min=4, max=10),
     stop=stop_after_attempt(3),
@@ -171,11 +121,7 @@ def chunk_sap_text(file_content: str, max_suppliers_per_chunk: int) -> List[str]
     reraise=True
 )
 def extract_data_with_gemini(text_chunk: str) -> dict:
-    """
-    Queries Gemini API using strict schema-enforced parameters.
-    """
-    # System and extraction rules sent along with the chunk.
-    # Explaining the alignment of tabular indexes prevents column value shifting.
+    """Calls the Gemini API and enforces JSON output matching our Pydantic schema."""
     prompt = f"""
     You are an expert SAP data extraction assistant.
     Extract the Supplier details and nested document transactions from this SAP F110 segment.
@@ -191,63 +137,61 @@ def extract_data_with_gemini(text_chunk: str) -> dict:
     {text_chunk}
     """
 
-    # Structured schema validation config settings
     config = types.GenerateContentConfig(
         response_mime_type="application/json",
         response_schema=ExtractionResult,
-        temperature=0.0  # Set to 0.0 to limit stylistic variation and hallucination
+        temperature=0.0
     )
 
-    logger.info("Executing structured API extraction...")
     response = client.models.generate_content(
         model=MODEL_NAME,
         contents=prompt,
         config=config,
     )
     
-    # Load and return parsed dictionary matching ExtractionResult
     return json.loads(response.text)
 
-
 # ===========================================================================
-# 6. Extraction Pipeline Pipeline Execution
+# 6. Extraction Pipeline (MULTITHREADED)
 # ===========================================================================
 def main(input_path: str):
-    """
-    Main controller orchestration flow.
-    Reads data, executes chunking, queries LLM API, flattens output and saves files.
-    """
     os.makedirs("output", exist_ok=True)
     
-    logger.info(f"Target extraction filepath: {input_path}")
+    logger.info(f"Reading file: {input_path}")
     with open(input_path, 'r', encoding='utf-8') as f:
         file_content = f.read()
 
-    # Pre-process text to partition massive reports into reliable, isolated sub-blocks.
-    logger.info("Initializing document chunking engine...")
+    logger.info("Chunking document...")
     chunks = chunk_sap_text(file_content, MAX_SUPPLIERS_PER_CHUNK)
-    logger.info(f"Document successfully chunked into {len(chunks)} blocks.")
+    valid_chunks = [c for c in chunks if "--Supplier" in c]
+    logger.info(f"Created {len(valid_chunks)} valid chunks.")
 
     all_suppliers = []
 
-    # Iterate and extract each chunk sequentially
-    for i, chunk in enumerate(chunks):
-        # We skip any preamble fragments that do not contain actual Supplier markers
-        if "--Supplier" not in chunk:
-            logger.info(f"Skipping index {i+1} as it does not contain a supplier boundary.")
-            continue
-            
-        logger.info(f"Processing sequence chunk {i+1}/{len(chunks)}...")
+    # Thread worker function
+    def process_chunk(payload):
+        index, text_chunk = payload
+        logger.info(f"Extracting Chunk {index}/{len(valid_chunks)}...")
         try:
-            result_json = extract_data_with_gemini(chunk)
-            all_suppliers.extend(result_json.get("suppliers", []))
+            return extract_data_with_gemini(text_chunk)
         except Exception as e:
-            logger.error(f"Critical error processing segment index {i+1} after maximum retries: {e}")
+            logger.error(f"Chunk {index} failed after retries: {e}")
+            return None
+
+    # Execute API calls in parallel
+    logger.info(f"Starting parallel execution with {MAX_CONCURRENT_CALLS} threads...")
+    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_CONCURRENT_CALLS) as executor:
+        payloads = [(i + 1, chunk) for i, chunk in enumerate(valid_chunks)]
+        results = list(executor.map(process_chunk, payloads))
+        
+        for res in results:
+            if res and "suppliers" in res:
+                all_suppliers.extend(res["suppliers"])
 
     # =======================================================================
-    # 7. Flattening, Cleaning, and Export Processing
+    # 7. Flattening, Cleaning, and Exporting
     # =======================================================================
-    logger.info("Normalizing and flattening JSON dictionary tree into raw relational format...")
+    logger.info("Flattening JSON to tabular format...")
     flat_data = []
     
     for supplier in all_suppliers:
@@ -255,7 +199,6 @@ def main(input_path: str):
         sup_name = supplier.get("supplier_name")
         sup_addr = supplier.get("supplier_address")
         
-        # Unwind nested transaction rows to map 1-to-many relationship rows
         for doc in supplier.get("documents", []):
             flat_data.append({
                 "Supplier_Number": sup_num,
@@ -270,7 +213,6 @@ def main(input_path: str):
                 "PayT": doc.get("pay_t"),
                 "PK": doc.get("pk"),
                 "Currency": doc.get("currency"),
-                # Apply deterministic parsing to sanitize raw currency strings to system float values
                 "Net_Amount_FC": clean_sap_number(doc.get("net_amount_fc")),
                 "Net_Amount_LC": clean_sap_number(doc.get("net_amount_lc")),
                 "Err_Code": doc.get("err"),
@@ -278,34 +220,28 @@ def main(input_path: str):
                 "Confidence_Score": doc.get("confidence_score")
             })
 
-    # Save structured source JSON output file for traceability and validation
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    raw_json_path = f"output/extracted_raw_{timestamp}.json"
-    with open(raw_json_path, "w") as f:
-        json.dump({"suppliers": all_suppliers}, f, indent=4)
-    logger.info(f"Archived structured raw JSON document at: {raw_json_path}")
-
-    # Convert to standard Pandas DataFrame
-    df = pd.DataFrame(flat_data)
     
+    # Export Raw JSON
+    with open(f"output/extracted_raw_{timestamp}.json", "w") as f:
+        json.dump({"suppliers": all_suppliers}, f, indent=4)
+        
+    # Export CSV & Excel
+    df = pd.DataFrame(flat_data)
     if not df.empty:
         csv_path = f"output/sap_extraction_{timestamp}.csv"
         excel_path = f"output/sap_extraction_{timestamp}.xlsx"
-        
-        # Write to system files
         df.to_csv(csv_path, index=False)
         df.to_excel(excel_path, index=False)
         
-        logger.info(f"Pipeline executed successfully. Processed {len(df)} total line transactions.")
-        logger.info(f"Target Destination (CSV): {csv_path}")
-        logger.info(f"Target Destination (Excel): {excel_path}")
+        logger.info(f"Extraction successful! Processed {len(df)} document lines.")
+        logger.info(f"Files saved in output/ directory.")
     else:
-        logger.warning("No tabular rows were recovered. Check input structure or configuration values.")
+        logger.warning("No data extracted. Please check the input file.")
 
 if __name__ == "__main__":
-    # Ensure input file exists before execution
     input_file = "input/input_sample.txt"
     if os.path.exists(input_file):
         main(input_file)
     else:
-        logger.error(f"Execution terminated. Source document does not exist at: {input_file}")
+        logger.error(f"File not found: {input_file}. Ensure you created the input folder and added the text file.")
